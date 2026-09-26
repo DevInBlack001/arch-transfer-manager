@@ -25,6 +25,7 @@ else
   echo "Applying install steps for $REPO_DIR..."
 fi
 
+"$REPO_DIR/scripts/sync-version.sh"
 "$REPO_DIR/install.sh" "${INSTALL_ARGS[@]}"
 
 systemctl --user restart filetransferd.service

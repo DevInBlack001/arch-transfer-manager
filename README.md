@@ -187,6 +187,38 @@ with `move` in place of `copy`).
 From Quickshell: the bar icon is always there; click it to open the queue,
 with pause/resume/cancel per job.
 
+## Remote transfers
+
+A source or destination can be a remote host instead of a local path,
+using rsync's own syntax:
+
+```sh
+ftctl enqueue --copy user@nas.local:/mnt/backups /path/to/file
+ftctl enqueue --move /path/to/folder armiya@192.168.1.50:/srv/incoming
+```
+
+Either side (not both) can be remote; rsync itself can't transfer
+directly between two remote hosts in one hop, so that's rejected at
+enqueue time.
+
+`filetransferd` never handles credentials, keys, or host trust itself,
+that's entirely your system's own SSH:
+
+- Passwordless key auth (an unlocked `ssh-agent`, or a key with no
+  passphrase in `~/.ssh/config`) works with no further setup.
+- A host you haven't connected to before, or one that needs a password,
+  needs a graphical `SSH_ASKPASS` helper installed (e.g. `ssh-askpass`,
+  `seahorse`, `x11-ssh-askpass`) so the prompt can pop up somewhere, since
+  the daemon itself has no terminal. `install.sh` runs `systemctl --user
+  import-environment DISPLAY WAYLAND_DISPLAY SSH_ASKPASS` for you; if
+  prompts stop appearing after a Hyprland/session restart, re-run that
+  command (or just restart the daemon after logging back in) to refresh
+  the daemon's copy of your session environment.
+- Without an askpass helper, a host needing interactive auth just fails
+  with a clear SSH error in the job's status, same as any other transfer
+  failure; run `ssh user@host` once in a terminal yourself to establish
+  trust or unlock a key, then retry the job.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

@@ -5,6 +5,7 @@ lives under XDG_RUNTIME_DIR, so only the invoking user's session can reach
 it. Keeping the path/limit logic here means both sides agree on it exactly.
 """
 import os
+import re
 import socket
 import struct
 
@@ -48,6 +49,17 @@ def queue_file():
 
 def log_file():
     return os.path.join(state_dir(), "daemon.log")
+
+
+# rsync's own remote-spec heuristic: [user@]host:path, colon before the
+# first slash. The (?!//) guard excludes rsync://host/path (daemon
+# protocol, a different port and auth model, out of scope here).
+_REMOTE_SPEC_RE = re.compile(r"^(?:[^@/\s]+@)?[^/\s:]+:(?!//).+")
+
+
+def is_remote_spec(path):
+    """True if `path` is an rsync-style [user@]host:path remote spec."""
+    return bool(_REMOTE_SPEC_RE.match(path))
 
 
 def peer_uid(sock):

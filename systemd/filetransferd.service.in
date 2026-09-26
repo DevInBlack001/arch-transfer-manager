@@ -8,6 +8,10 @@ ExecStart=/usr/bin/python3 __EXEC_PATH__
 Restart=on-failure
 RestartSec=2
 Environment=PYTHONUNBUFFERED=1
+# Lets an SSH_ASKPASS helper pop up a GUI prompt for remote-transfer auth
+# (password / host-key confirmation) since this service has no terminal.
+# Populated via `systemctl --user import-environment`, run by install.sh.
+PassEnvironment=DISPLAY WAYLAND_DISPLAY SSH_ASKPASS
 NoNewPrivileges=true
 PrivateTmp=true
 

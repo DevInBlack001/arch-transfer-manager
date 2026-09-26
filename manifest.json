@@ -2,11 +2,13 @@
   "schemaVersion": 1,
   "id": "filetransfer",
   "name": "Transfer Manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "DevInBlack001",
   "license": "MIT",
   "description": "Monitor and control queued file copy/move transfers, independent of any file manager.",
-  "kinds": ["bar-widget"],
+  "kinds": [
+    "bar-widget"
+  ],
   "entryPoints": {
     "barWidget": "Panel.qml"
   },

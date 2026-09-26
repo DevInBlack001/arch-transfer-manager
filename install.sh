@@ -40,6 +40,12 @@ if ok_to_write "$SERVICE_UNIT"; then
 fi
 systemctl --user enable --now filetransferd.service
 
+# Best-effort: lets remote-transfer SSH prompts (password, host-key
+# confirmation) reach an SSH_ASKPASS GUI helper instead of a TTY the
+# service doesn't have. Not fatal if there's no graphical session yet
+# (e.g. running install.sh over a plain SSH login).
+systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SSH_ASKPASS 2>/dev/null || true
+
 chmod +x "$REPO_DIR/integration/send-to-transfer-manager.sh"
 
 # manifest.json lives at the repo root, so the plugin folder Omarchy expects

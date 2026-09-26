@@ -1,0 +1,32 @@
+# Changelog
+
+All notable changes to this project are documented here. Format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [1.1.0] - 2026-09-26
+
+### Added
+
+- Remote (SSH) transfers: `ftctl enqueue` now accepts rsync's native
+  `[user@]host:/path` syntax for a source or destination, in addition to
+  local paths and already-mounted network shares. Authentication and host
+  trust remain entirely the system's own SSH's responsibility (agent,
+  `~/.ssh/config`, `known_hosts`); the daemon never stores or handles
+  credentials. Interactive prompts (password, first-time host-key
+  confirmation) surface through the system's `$SSH_ASKPASS` GUI helper,
+  since the daemon has no terminal of its own.
+- `version.json` at the repo root as the single source of truth for the
+  project version, kept in sync with `manifest.json` via
+  `scripts/sync-version.sh` (also run automatically by `update.sh`).
+
+## [1.0.0] - 2026-08-29
+
+### Added
+
+- Initial release: `filetransferd` daemon running queued copy/move jobs
+  with `rsync`, `ftctl` CLI, and a Quickshell bar panel for Omarchy.
+- Pause/resume (via `SIGSTOP`/`SIGCONT`), cancel, reorder, and persisted
+  queue state that survives daemon restarts.
+- Nautilus/Thunar "send to Transfer Manager" integration.
+- Bar icon states themed to the active Omarchy palette (idle, in
+  progress, failed).

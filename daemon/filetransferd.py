@@ -273,14 +273,22 @@ class TransferDaemon:
         active += sum(1 for j in self.jobs.values() if j.state == "paused")
         if active >= common.MAX_QUEUED_JOBS:
             return "queue is full"
+        dest_remote = isinstance(dest, str) and common.is_remote_spec(dest)
+        sources_remote = []
         for src in sources:
             if not isinstance(src, str) or not src or "\x00" in src:
                 return "invalid source path"
+            if common.is_remote_spec(src):
+                sources_remote.append(True)
+                continue
+            sources_remote.append(False)
             if not os.path.lexists(src):
                 return "source does not exist: " + src
+        if all(sources_remote) and dest_remote:
+            return "remote-to-remote transfers are not supported: one side must be local"
         if "\x00" in dest:
             return "invalid destination path"
-        if not os.path.isdir(os.path.realpath(dest)):
+        if not dest_remote and not os.path.isdir(os.path.realpath(dest)):
             return "destination is not a directory: " + dest
         return None
 
@@ -329,7 +337,8 @@ class TransferDaemon:
             error = self._validate_enqueue(mode, sources, dest)
             if error:
                 return {"ok": False, "error": error}
-            job = Job(mode, list(sources), os.path.realpath(dest))
+            resolved_dest = dest if common.is_remote_spec(dest) else os.path.realpath(dest)
+            job = Job(mode, list(sources), resolved_dest)
             self.jobs[job.id] = job
             self.queue_order.append(job.id)
             # Unlike pause/resume/cancel this isn't racing a huge transfer's
@@ -433,7 +442,8 @@ class TransferDaemon:
                 job = self.jobs.get(job_id)
                 if not job:
                     continue
-                missing = [s for s in job.sources if not os.path.lexists(s)]
+                missing = [s for s in job.sources
+                           if not common.is_remote_spec(s) and not os.path.lexists(s)]
                 if missing:
                     job.state = "error"
                     job.error = "source no longer exists: " + missing[0]
@@ -463,6 +473,16 @@ class TransferDaemon:
             return
         args = ["rsync", "-a", "--info=progress2,name1", "--no-inc-recursive",
                 "--partial", "--partial-dir=.rsync-partial"]
+        is_remote_job = common.is_remote_spec(job.dest) or any(common.is_remote_spec(s) for s in job.sources)
+        if is_remote_job:
+            # No BatchMode=yes: this subprocess has no controlling terminal
+            # (start_new_session=True, no PTY), so OpenSSH already routes
+            # any prompt (password, host-key confirmation) to $SSH_ASKPASS
+            # instead of a TTY, as long as the daemon's own environment has
+            # DISPLAY/WAYLAND_DISPLAY/SSH_ASKPASS set (see install.sh).
+            # Auth and host trust stay entirely the system's own SSH's
+            # responsibility; this daemon never touches keys or passwords.
+            args.extend(["-e", "ssh -o ConnectTimeout=10"])
         if job.mode == "move":
             args.append("--remove-source-files")
         args.append("--")
