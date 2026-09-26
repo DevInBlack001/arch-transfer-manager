@@ -13,7 +13,14 @@ Environment=PYTHONUNBUFFERED=1
 # Populated via `systemctl --user import-environment`, run by install.sh.
 PassEnvironment=DISPLAY WAYLAND_DISPLAY SSH_ASKPASS
 NoNewPrivileges=true
-PrivateTmp=true
+# No PrivateTmp: it puts the service in its own mount namespace, which
+# remaps root-owned files' apparent UID under systemd's user-namespace
+# sandboxing. OpenSSH's strict permission check on
+# /etc/ssh/ssh_config.d/*.conf then sees a "wrong" owner and refuses to
+# even parse ssh_config, breaking every remote transfer before it reaches
+# the network. The daemon doesn't use /tmp anyway (queue state lives
+# under XDG_STATE_HOME, the socket under XDG_RUNTIME_DIR), so there's
+# nothing this bought that isolation elsewhere here doesn't already cover.
 
 [Install]
 WantedBy=default.target

@@ -3,6 +3,19 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.1] - 2026-09-26
+
+### Fixed
+
+- Removed `PrivateTmp=true` from the `filetransferd` systemd unit. It put
+  the service in its own mount namespace, which remapped root-owned
+  files' apparent UID under systemd's user-namespace sandboxing; OpenSSH's
+  strict permission check on `/etc/ssh/ssh_config.d/*.conf` then saw a
+  "wrong" owner and refused to parse `ssh_config` at all, silently
+  breaking every remote transfer before it reached the network. The
+  daemon doesn't use `/tmp` (queue state lives under `XDG_STATE_HOME`,
+  the socket under `XDG_RUNTIME_DIR`), so this loses no real isolation.
+
 ## [1.1.0] - 2026-09-26
 
 ### Added
