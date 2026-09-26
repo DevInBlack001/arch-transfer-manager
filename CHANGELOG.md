@@ -3,6 +3,15 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.3] - 2026-09-26
+
+### Changed
+
+- Renamed the repo from `omarchy-transfer-manager` to `arch-transfer-manager`.
+- Reflects that the daemon and `ftctl` run on any Arch-based system.
+- The Quickshell panel still needs Omarchy specifically.
+- Updated all README install/clone URLs to the new repo name.
+
 ## [1.1.2] - 2026-09-26
 
 ### Changed

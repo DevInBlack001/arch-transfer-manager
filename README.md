@@ -77,7 +77,7 @@ failed") and per job in the list.
 ## Install from the Omarchy plugin marketplace
 
 ```
-omarchy plugin add https://github.com/DevInBlack001/omarchy-transfer-manager.git --enable
+omarchy plugin add https://github.com/DevInBlack001/arch-transfer-manager.git --enable
 ```
 
 This clones the repo straight into `~/.config/omarchy/plugins/filetransfer`
@@ -125,8 +125,8 @@ it.
 ## Install from a manual git clone
 
 ```sh
-git clone https://github.com/DevInBlack001/omarchy-transfer-manager.git
-cd omarchy-transfer-manager
+git clone https://github.com/DevInBlack001/arch-transfer-manager.git
+cd arch-transfer-manager
 ./install.sh
 ```
 
