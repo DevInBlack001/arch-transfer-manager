@@ -3,6 +3,15 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.2] - 2026-09-26
+
+### Changed
+
+- Expanded the README's remote-transfer section with SSH setup steps:
+  trusting a host key, adding a default key via ssh-copy-id, wiring a
+  custom key file through ~/.ssh/config, and password-only auth via
+  SSH_ASKPASS.
+
 ## [1.1.1] - 2026-09-26
 
 ### Fixed
