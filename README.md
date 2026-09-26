@@ -202,22 +202,57 @@ directly between two remote hosts in one hop, so that's rejected at
 enqueue time.
 
 `filetransferd` never handles credentials, keys, or host trust itself,
-that's entirely your system's own SSH:
+that's entirely your system's own SSH. Since the daemon runs headless
+(no terminal, no interactive prompt), it can only use whatever is
+already set up before you enqueue a job. Do this once per host, from a
+regular terminal, before using it with `ftctl`:
 
-- Passwordless key auth (an unlocked `ssh-agent`, or a key with no
-  passphrase in `~/.ssh/config`) works with no further setup.
-- A host you haven't connected to before, or one that needs a password,
-  needs a graphical `SSH_ASKPASS` helper installed (e.g. `ssh-askpass`,
-  `seahorse`, `x11-ssh-askpass`) so the prompt can pop up somewhere, since
-  the daemon itself has no terminal. `install.sh` runs `systemctl --user
-  import-environment DISPLAY WAYLAND_DISPLAY SSH_ASKPASS` for you; if
-  prompts stop appearing after a Hyprland/session restart, re-run that
-  command (or just restart the daemon after logging back in) to refresh
-  the daemon's copy of your session environment.
-- Without an askpass helper, a host needing interactive auth just fails
-  with a clear SSH error in the job's status, same as any other transfer
-  failure; run `ssh user@host` once in a terminal yourself to establish
-  trust or unlock a key, then retry the job.
+**1. Trust the host key.** The very first connection to any host needs a
+one-time yes/no host-key confirmation, which the daemon can't answer:
+
+```sh
+ssh user@host   # accept the fingerprint; exit once connected
+```
+
+**2. Make sure a *default* key gets offered.** `ssh` only automatically
+offers its default identity files (`~/.ssh/id_ed25519`, `~/.ssh/id_rsa`,
+etc.); it will silently skip a key stored anywhere else or under a
+different name, and so will `filetransferd`. To add a default key to a
+host's `authorized_keys`:
+
+```sh
+ssh-copy-id user@host
+```
+
+**3. Using a non-default key file, or a specific user/port per host?**
+Put it in `~/.ssh/config` instead of passing flags on the command line
+(there's nowhere to pass `-i` through `ftctl enqueue`, since `dest`/
+`sources` are plain rsync path specs):
+
+```
+Host host
+  HostName 192.168.1.50
+  User someuser
+  IdentityFile ~/.lab-ssh/host_key
+```
+
+Once that's saved, plain `ssh user@host` (and therefore rsync, and
+therefore the daemon) picks up the right key automatically, no different
+from a default one.
+
+**4. Password-only auth (no key at all)?** This needs a graphical
+`SSH_ASKPASS` helper installed (e.g. `ssh-askpass`, `seahorse`,
+`x11-ssh-askpass`) so the prompt has somewhere to pop up, since the
+daemon has no terminal of its own. `install.sh` runs `systemctl --user
+import-environment DISPLAY WAYLAND_DISPLAY SSH_ASKPASS` for you; if
+prompts stop appearing after a Hyprland/session restart, re-run that
+command (or just restart the daemon after logging back in) to refresh
+the daemon's copy of your session environment. Without an askpass helper
+installed, a password-only host just fails with a clear SSH error in the
+job's status instead of hanging.
+
+Once steps 1-3 (or 1 and 4) are done for a host, `ftctl enqueue` jobs
+against it need no further setup, exactly like any local transfer.
 
 ## License
 
