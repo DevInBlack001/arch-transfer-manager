@@ -194,7 +194,7 @@ using rsync's own syntax:
 
 ```sh
 ftctl enqueue --copy user@nas.local:/mnt/backups /path/to/file
-ftctl enqueue --move /path/to/folder armiya@192.168.1.50:/srv/incoming
+ftctl enqueue --move /path/to/folder user@192.168.1.50:/srv/incoming
 ```
 
 Either side (not both) can be remote; rsync itself can't transfer
