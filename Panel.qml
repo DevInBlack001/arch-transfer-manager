@@ -19,6 +19,7 @@ Panel {
 
   readonly property var runningJob: Model.firstByState(transfer.jobs, "running")
   readonly property int overallPercent: root.runningJob ? Model.percentFor(root.runningJob) : -1
+  readonly property bool showPercent: overallPercent >= 0 && !hasError
   readonly property bool hasActivity: transfer.activeCount > 0
   readonly property bool hasError: Model.hasError(transfer.jobs)
 
@@ -45,6 +46,14 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
+  TextMetrics {
+    id: percentMetrics
+    text: "100%"
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    font.bold: true
+  }
+
   BarIconButton {
     id: button
     anchors.fill: parent
@@ -52,11 +61,11 @@ Panel {
     tooltipText: root.hasError
       ? "A transfer failed"
       : (root.hasActivity ? (transfer.activeCount + " active transfer" + (transfer.activeCount === 1 ? "" : "s")) : "No ongoing transfer")
+    // The stock icon slot is a fixed square sized for a lone glyph, so widen
+    // it while a percentage is shown or the text would spill onto neighbours.
+    slotSize: root.showPercent ? Math.max(Style.bar.iconSlot, Style.space(12) + Style.space(2) + percentMetrics.width + Style.space(8)) : Style.bar.iconSlot
     iconComponent: Component {
       Item {
-        implicitWidth: content.implicitWidth
-        implicitHeight: content.implicitHeight
-
         Row {
           id: content
           anchors.centerIn: parent
@@ -69,7 +78,7 @@ Panel {
           }
 
           Text {
-            visible: root.overallPercent >= 0 && !root.hasError
+            visible: root.showPercent
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
             text: root.overallPercent + "%"
