@@ -54,22 +54,30 @@ Panel {
       : (root.hasActivity ? (transfer.activeCount + " active transfer" + (transfer.activeCount === 1 ? "" : "s")) : "No ongoing transfer")
     iconComponent: Component {
       Item {
-        TransferIcon {
-          anchors.centerIn: parent
-          iconSize: Style.space(12)
-          color: root.stateColor
-        }
+        implicitWidth: content.implicitWidth
+        implicitHeight: content.implicitHeight
 
-        Text {
-          visible: root.overallPercent >= 0 && !root.hasError
-          anchors.right: parent.right
-          anchors.bottom: parent.bottom
-          textFormat: Text.PlainText
-          text: root.overallPercent + "%"
-          color: root.stateColor
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          font.bold: true
+        Row {
+          id: content
+          anchors.centerIn: parent
+          spacing: Style.space(2)
+
+          TransferIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            iconSize: Style.space(12)
+            color: root.stateColor
+          }
+
+          Text {
+            visible: root.overallPercent >= 0 && !root.hasError
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.overallPercent + "%"
+            color: root.stateColor
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
         }
       }
     }

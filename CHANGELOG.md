@@ -3,6 +3,17 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.4] - 2026-10-15
+
+### Changed
+
+- The bar widget now shows the transfer percentage beside the icon instead
+  of overlaid on its corner.
+- Run the `filetransferd` service (and so its rsync children) at lower CPU
+  and I/O priority (`Nice=10`, best-effort I/O class 7) so heavy transfers
+  are less likely to freeze terminals and other interactive work. Re-run
+  `update.sh` to regenerate the installed unit.
+
 ## [1.1.3] - 2026-09-26
 
 ### Changed

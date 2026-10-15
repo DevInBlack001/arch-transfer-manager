@@ -13,6 +13,11 @@ Environment=PYTHONUNBUFFERED=1
 # Populated via `systemctl --user import-environment`, run by install.sh.
 PassEnvironment=DISPLAY WAYLAND_DISPLAY SSH_ASKPASS
 NoNewPrivileges=true
+# Keep heavy rsync copies from starving interactive work (terminals freezing
+# during big transfers). Children inherit these.
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
 # No PrivateTmp: it puts the service in its own mount namespace, which
 # remaps root-owned files' apparent UID under systemd's user-namespace
 # sandboxing. OpenSSH's strict permission check on
