@@ -29,7 +29,7 @@ def ensure_daemon():
     sock = connect(0.5)
     if sock:
         return sock
-    subprocess.run(["systemctl", "--user", "start", "filetransferd.service"],
+    subprocess.run(["/usr/bin/systemctl", "--user", "start", "filetransferd.service"],
                     check=False, capture_output=True, timeout=5)
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
