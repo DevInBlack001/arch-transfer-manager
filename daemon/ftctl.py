@@ -118,6 +118,10 @@ def main():
     p_enq = sub.add_parser("enqueue")
     p_enq.add_argument("--move", dest="mode", action="store_const", const="move")
     p_enq.add_argument("--copy", dest="mode", action="store_const", const="copy")
+    # compress: dest is the new archive path, sources are the items in one folder.
+    # extract: dest is the target folder, the single source is the archive.
+    p_enq.add_argument("--compress", dest="mode", action="store_const", const="compress")
+    p_enq.add_argument("--extract", dest="mode", action="store_const", const="extract")
     p_enq.set_defaults(mode="copy")
     p_enq.add_argument("dest")
     p_enq.add_argument("sources", nargs="+")

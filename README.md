@@ -170,6 +170,8 @@ Command line:
 ```sh
 ftctl enqueue --copy /path/to/destination /path/to/file [more files...]
 ftctl enqueue --move /path/to/destination /path/to/folder
+ftctl enqueue --compress /dir/new.tar.gz /dir/item [more items in /dir...]
+ftctl enqueue --extract /dir/target-folder /dir/archive.zip
 ftctl list                 # JSON: every job, running/queued/paused/history
 ftctl pause <job-id>
 ftctl resume <job-id>

@@ -27,9 +27,14 @@ import sys
 import tempfile
 import time
 import uuid
+import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import archive
 import ft_common as common
+
+ARCHIVE_MODES = ("compress", "extract")
+JOB_MODES = ("copy", "move") + ARCHIVE_MODES
 
 MAX_CONCURRENT = max(1, min(4, int(os.environ.get("FILETRANSFERD_MAX_CONCURRENT", "1") or "1")))
 MAX_HISTORY = 200
@@ -57,6 +62,13 @@ def _parse_eta(text):
     for p in parts:
         total = total * 60 + p
     return total
+
+
+class JobStartError(Exception):
+    def __init__(self, tool, cause):
+        super().__init__("failed to start %s: %s" % (tool, cause))
+        self.tool = tool
+        self.cause = cause
 
 
 class Job:
@@ -101,8 +113,8 @@ class Job:
         state = d["state"]
         if not isinstance(job_id, str) or not job_id:
             raise TypeError("job id must be a non-empty string")
-        if mode not in ("copy", "move"):
-            raise TypeError("job mode must be 'copy' or 'move'")
+        if mode not in JOB_MODES:
+            raise TypeError("job mode is not recognized")
         if not isinstance(sources, list) or not all(isinstance(s, str) for s in sources):
             raise TypeError("job sources must be a list of strings")
         if not isinstance(dest, str):
@@ -260,9 +272,44 @@ class TransferDaemon:
 
     # ---------------------------------------------------------- validation
 
+    def _validate_archive(self, mode, sources, dest):
+        """compress: sources are siblings in one directory and dest is the new
+        archive path. extract: one archive source and dest is the target folder."""
+        for src in sources:
+            if not isinstance(src, str) or not os.path.isabs(src) or "\x00" in src:
+                return "archive jobs need absolute local paths"
+        if "\x00" in dest or not os.path.isabs(dest):
+            return "archive jobs need an absolute destination"
+        if mode == "compress":
+            if archive.archive_kind(dest) is None:
+                return "use .zip, .tar, .tar.gz, .tgz, .tar.xz, .tar.zst or .tar.bz2"
+            parents = {os.path.dirname(s.rstrip("/")) for s in sources}
+            if len(parents) != 1:
+                return "items to compress must be in the same folder"
+            for src in sources:
+                if not os.path.lexists(src):
+                    return "source does not exist: " + src
+            if os.path.lexists(dest):
+                return "'%s' already exists" % os.path.basename(dest)
+            if not os.path.isdir(os.path.dirname(dest)):
+                return "destination folder does not exist"
+            return None
+        if len(sources) != 1:
+            return "extract takes exactly one archive"
+        src = sources[0]
+        if not os.path.isfile(src):
+            return "archive does not exist: " + src
+        if archive.archive_kind(src) is None:
+            return "unsupported archive type"
+        if os.path.lexists(dest) and not os.path.isdir(dest):
+            return "destination exists and is not a folder"
+        if not os.path.isdir(os.path.dirname(dest.rstrip("/")) or "/"):
+            return "destination parent folder does not exist"
+        return None
+
     def _validate_enqueue(self, mode, sources, dest):
-        if mode not in ("copy", "move"):
-            return "mode must be 'copy' or 'move'"
+        if mode not in JOB_MODES:
+            return "mode must be one of: " + ", ".join(JOB_MODES)
         if not isinstance(sources, list) or not sources:
             return "sources must be a non-empty list"
         if len(sources) > common.MAX_SOURCES:
@@ -273,6 +320,8 @@ class TransferDaemon:
         active += sum(1 for j in self.jobs.values() if j.state == "paused")
         if active >= common.MAX_QUEUED_JOBS:
             return "queue is full"
+        if mode in ARCHIVE_MODES:
+            return self._validate_archive(mode, sources, dest)
         dest_remote = isinstance(dest, str) and common.is_remote_spec(dest)
         sources_remote = []
         for src in sources:
@@ -337,7 +386,10 @@ class TransferDaemon:
             error = self._validate_enqueue(mode, sources, dest)
             if error:
                 return {"ok": False, "error": error}
-            resolved_dest = dest if common.is_remote_spec(dest) else os.path.realpath(dest)
+            if mode in ARCHIVE_MODES:
+                resolved_dest = dest.rstrip("/") or "/"
+            else:
+                resolved_dest = dest if common.is_remote_spec(dest) else os.path.realpath(dest)
             job = Job(mode, list(sources), resolved_dest)
             self.jobs[job.id] = job
             self.queue_order.append(job.id)
@@ -471,6 +523,24 @@ class TransferDaemon:
         job = self.jobs.get(job_id)
         if not job:
             return
+        try:
+            if job.mode in ARCHIVE_MODES:
+                returncode, stderr_tail = await self._run_archive(job_id, job)
+            else:
+                returncode, stderr_tail = await self._run_rsync(job_id, job)
+        except JobStartError as exc:
+            async with self.lock:
+                job.state = "error"
+                job.error = "failed to start %s: %s" % (exc.tool, exc.cause)
+                job.finished_at = time.time()
+                self.running_ids.discard(job_id)
+                self._trim_history()
+                self._save_nowait()
+            await self._schedule()
+            return
+        await self._finish_job(job_id, job, returncode, stderr_tail)
+
+    async def _run_rsync(self, job_id, job):
         args = ["rsync", "-a", "--info=progress2,name1", "--no-inc-recursive",
                 "--partial", "--partial-dir=.rsync-partial"]
         is_remote_job = common.is_remote_spec(job.dest) or any(common.is_remote_spec(s) for s in job.sources)
@@ -497,15 +567,7 @@ class TransferDaemon:
                 start_new_session=True,
             )
         except OSError as exc:
-            async with self.lock:
-                job.state = "error"
-                job.error = "failed to start rsync: " + str(exc)
-                job.finished_at = time.time()
-                self.running_ids.discard(job_id)
-                self._trim_history()
-                self._save_nowait()
-            await self._schedule()
-            return
+            raise JobStartError("rsync", exc)
 
         self.procs[job_id] = proc
         self.pgids[job_id] = os.getpgid(proc.pid)
@@ -545,7 +607,112 @@ class TransferDaemon:
 
         await asyncio.gather(read_stdout(), read_stderr())
         returncode = await proc.wait()
+        return returncode, stderr_tail
 
+    async def _run_archive(self, job_id, job):
+        """Run a compress or extract job, updating job.bytes_done as it goes."""
+        loop = asyncio.get_running_loop()
+        stderr_tail = []
+        job.bytes_done = 0
+        try:
+            if job.mode == "compress":
+                parent = os.path.dirname(job.sources[0].rstrip("/"))
+                names = [os.path.basename(s.rstrip("/")) for s in job.sources]
+                argv, cwd = archive.build_compress(job.dest, parent, names)
+                kind = archive.archive_kind(job.dest)[0]
+                tracker = archive.Tracker("compress", kind, parent)
+                job.bytes_total = await loop.run_in_executor(
+                    None, archive.tree_size, [os.path.join(parent, n) for n in names])
+                stdin_file = None
+            else:
+                src = job.sources[0]
+                os.makedirs(job.dest, exist_ok=True)
+                argv, feed_stdin = archive.build_extract(src, job.dest)
+                kind = archive.archive_kind(src)[0]
+                cwd = None
+                sizes = {}
+                if kind == "zip":
+                    sizes = await loop.run_in_executor(None, archive.zip_member_sizes, src)
+                    job.bytes_total = sum(sizes.values())
+                else:
+                    job.bytes_total = os.path.getsize(src)
+                tracker = archive.Tracker("extract", kind, None, sizes)
+                stdin_file = src if feed_stdin else None
+            proc = await asyncio.create_subprocess_exec(
+                *argv, cwd=cwd,
+                stdin=asyncio.subprocess.PIPE if stdin_file else asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                start_new_session=True,
+            )
+        except (OSError, zipfile.BadZipFile) as exc:
+            raise JobStartError(job.mode, exc)
+
+        self.procs[job_id] = proc
+        self.pgids[job_id] = os.getpgid(proc.pid)
+        started = time.monotonic()
+
+        async def read_stdout():
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                tracker.feed_line(line.decode("utf-8", "replace"))
+                job.current_file = tracker.current_name[:400]
+
+        async def read_stderr():
+            while True:
+                line = await proc.stderr.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", "replace").strip()
+                if text:
+                    stderr_tail.append(text)
+                    del stderr_tail[:-20]
+
+        async def feed():
+            # tar reads the archive from stdin so the bytes handed over are
+            # an exact progress counter, whatever the compression.
+            try:
+                with open(stdin_file, "rb") as fh:
+                    while True:
+                        chunk = await loop.run_in_executor(None, fh.read, 262144)
+                        if not chunk:
+                            break
+                        proc.stdin.write(chunk)
+                        await proc.stdin.drain()
+                        job.bytes_done += len(chunk)
+            except (OSError, ConnectionError):
+                pass
+            finally:
+                with contextlib.suppress(OSError, ConnectionError):
+                    proc.stdin.close()
+
+        async def tick():
+            while True:
+                await asyncio.sleep(0.5)
+                if stdin_file is None:
+                    job.bytes_done = max(job.bytes_done, tracker.bytes_done(proc.pid))
+                if job.state == "running":
+                    elapsed = max(time.monotonic() - started, 0.001)
+                    job.speed_bps = job.bytes_done / elapsed
+                    left = job.bytes_total - job.bytes_done
+                    job.eta_sec = int(left / job.speed_bps) if job.speed_bps > 0 and left >= 0 else -1
+
+        ticker = asyncio.ensure_future(tick())
+        tasks = [read_stdout(), read_stderr()]
+        if stdin_file:
+            tasks.append(feed())
+        try:
+            await asyncio.gather(*tasks)
+            returncode = await proc.wait()
+        finally:
+            ticker.cancel()
+        if returncode == 0 and job.state != "cancelled":
+            job.bytes_done = max(job.bytes_done, job.bytes_total)
+        return returncode, stderr_tail
+
+    async def _finish_job(self, job_id, job, returncode, stderr_tail):
+        tool = {"compress": "archive tool", "extract": "extract tool"}.get(job.mode, "rsync")
         async with self.lock:
             self.procs.pop(job_id, None)
             self.pgids.pop(job_id, None)
@@ -557,8 +724,12 @@ class TransferDaemon:
                         self._cleanup_empty_dirs(job.sources)
                 else:
                     job.state = "error"
-                    job.error = ("\n".join(stderr_tail[-3:]) or ("rsync exited with code %d" % returncode))[:2000]
+                    job.error = ("\n".join(stderr_tail[-3:]) or ("%s exited with code %d" % (tool, returncode)))[:2000]
                 job.finished_at = time.time()
+            if job.mode == "compress" and job.state != "done":
+                # Never leave a half-written archive behind.
+                with contextlib.suppress(OSError):
+                    os.unlink(job.dest)
             self._trim_history()
             self._save_nowait()
         await self._schedule()

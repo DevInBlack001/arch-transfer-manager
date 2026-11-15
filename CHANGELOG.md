@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] - 2026-11-15
+
+### Added
+
+- Compress and extract jobs with live progress (bytes, speed, ETA). Queue them with `ftctl enqueue --compress <archive> <items...>` and `ftctl enqueue --extract <folder> <archive>`. Supported: `.zip`, `.tar`, `.tar.gz`, `.tgz`, `.tar.xz`, `.tar.zst`, `.tar.bz2`.
+- The panel labels these jobs "Compressing" and "Extracting".
+- Extraction never overwrites existing files. A cancelled or failed compress removes its partial archive.
+
 ## [1.1.5] - 2026-11-15
 
 ### Changed
