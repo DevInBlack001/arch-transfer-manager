@@ -56,7 +56,9 @@ Item {
 
   Timer {
     id: pollTimer
-    interval: root.pollIntervalSec * 1000
+    // Poll at the configured rate only while a transfer is active; idle
+    // polling backs off to 5x so a quiet bar does not keep spawning Python.
+    interval: root.pollIntervalSec * 1000 * (root.activeCount > 0 ? 1 : 5)
     repeat: true
     running: true
     triggeredOnStart: true

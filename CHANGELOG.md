@@ -3,6 +3,12 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.5] - 2026-11-15
+
+### Changed
+
+- The bar widget polls at the configured rate only while a transfer is active, and 5 times slower when idle, so a quiet bar spawns far fewer `ftctl` processes.
+
 ## [1.1.4] - 2026-10-15
 
 ### Changed
